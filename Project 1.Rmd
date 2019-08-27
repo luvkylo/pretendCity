@@ -1,0 +1,203 @@
+---
+title: "Project 1"
+output:
+  pdf_document: default
+  html_document: default
+Authors: Alvin Ng, Jenny Wang, Ruixi Zhou, Austin Lee
+---
+## Authors
+
+Authors: Alvin Ng, Jenny Wang, Ruixi Zhou, Austin Lee
+
+## Introduction
+
+Model building is often used for foreasting the macroeconomy but it may also be useful on a micro-level. In this project, we will be forecasting attendence for a non-profit organization based in Irvine that aims to promote child-development. We hope to provide management insights on their data so they can adjust their resources accordingly and prevent unnecessary costs. 
+
+The data used in this project is the Monthly attendence of the non-profit organization. The data contains daily ticket entries excluding entries from birthday parties and field trips (Attendence), if it is federal holiday (Fed Holiday), if the day is a Saturday or Sunday (Weekend), and if the museum is closed (Closed). Data is collected from it's opening day, September 1st 2009, till present, January 20th 2019. 
+
+## 1A. Time series plot of the data
+
+```{r}
+#Here we read in our excel data
+library(readxl)
+library(forecast)
+Monthly_data <- read_excel("PretendCity Daily Attendence.xlsx", 
+    sheet = "Monthly")
+# create a time series model from the data set
+ts_data <- ts(Monthly_data$Attendence, start = c(2009,9), frequency = 12)
+# plot the time series model
+plot(ts_data, ylab="Monthly Attendence", xlab="Time (Month)")
+```
+
+## 1B. Covariance stationary
+
+```{r}
+# plot the covariance of the time series by taking the first difference of the log of the time series
+# the difference of the log of the time series give us the percentage point changes between each point e.g. 0.2 = 20%
+plot(diff(log(ts_data)), ylab="Monthly attendence growth rate")
+```
+
+The plot above suggest that the observed data is covariance stationary because it has the same variance mean. 
+
+## 1C. ACF
+
+```{r}
+# finding the autocorrelation function of the time series model
+acf(ts_data, lag.max = 90)
+```
+
+The graph above shows trends and cycle indictating that simply logging the function does not capture all the dynamics of the data, such as seasonality. We also see that around december and January, there is a spike in ACF, implying time dependence. 
+
+## 1C. PACF
+
+```{r}
+# finding the partial autocorrelation funciton of the time series model, removing all the information in between time t and t+1
+pacf(ts_data, lag.max = 90)
+```
+
+After the initial two years, PACF decreased significantly, implying that after removing information between time t and t+1, the data is no longer time dependence. 
+
+## 1D. Linear and Non-Linear Fit
+
+```{r}
+# Create a sequence to show the length of time 
+
+t <- seq(2009, 2019.1,length=length(ts_data))
+# Linear fit of data vs time 
+lin_fit = tslm(ts_data~t)
+# Quadratic fit of data vs time 
+quad_fit=tslm(ts_data~t+I(t^2))
+
+# Plot both fits against the original data 
+par(mfrow=c(3,1))
+plot(ts_data, xlab="Month", lwd=2, col='skyblue3', xlim=c(2009,2019), main="linear Plot")
+lines(t,lin_fit$fit,col="red3",lwd=2)
+plot(ts_data, xlab="Month", lwd=2, col='skyblue3', xlim=c(2009,2019), main="Quadratic Plot")
+lines(t,quad_fit$fit,col="red3",lwd=2)
+```
+
+## 1E. Residuals vs Fitted Values
+
+```{r}
+# Plot Linear and Quadratic model to compare the residuals (predicted) and fitted values (actual)
+par(mfrow=c(2,1))
+plot(as.vector(fitted(lin_fit)),as.vector(residuals(lin_fit)), ylab="Residuals",xlab="Fitted Values", main = "Fitted vs Residuals of Linear Fit")
+abline(h=0,lwd=2,col = "red3")
+plot(as.vector(fitted(quad_fit)),as.vector(residuals(quad_fit)), ylab="Residuals",xlab="Fitted Values", main = "Fitted vs Residuals of Quadratic Fit")
+abline(h=0,lwd=2,col = "red3")
+```
+
+In both of these graphs the residuals form an almost horiztonal line around zero and appear to bounce randomly between zero. This indicates that both the linear and quadratic relationship could be reasonable. One difference to note would be that the residuals in the linear model seem to be evenly spread horizontally while in the quadratic model they appear to be clustered more densely on the left side. However, the variance still seems to be evenly spread so the relationship should still be reasonable. 
+
+## 1F. Histogram of Residuals
+
+```{r}
+# Plot the residuals (error amount) or both the linear and quadratic fit 
+par(mfrow=c(2,1))
+hist(lin_fit$res,15,col="skyblue3",xlab="Residuals",ylab="Fraction",main="Histogram of Residuals for Linear Model")
+hist(quad_fit$res,15,col="skyblue3",xlab="Residuals",ylab="Fraction",main="Histogram of Residuals for Quadratic Model")
+```
+
+For both cases the residuals are centered around zero, which means that there is not a trend in the residuals which is an indication that this is a good model. However, the residual in both models have a tail on the right, indicating there might be a some dynamics we are not capturing.
+
+## 1G. Diagnostic Statistics
+
+```{r}
+# Run the statistics of both the linear and quadratic fit 
+summary(lin_fit)
+summary(quad_fit)
+```
+
+For both models the adjusted R squared is very low, with the quadratic model slightly larger at 0.1622 compared the linear model of 0.04723. This indicates that neither model is a very good fit as the amount of error is still very large, though the quadratic fit is slightly better. The F-statistic for both are also large with 10.55 for the quadratic and 5.453 for the linear fit. A high F-stat means that we can reject the null hypothesis that the group means are equal. Also, in the quadratic model the t-values show that all of the variables are significant whereas in the linear model the two variables are less statistically significant. Therefore, while both models are not good fits, the quadratic performs slightly better than the linear. 
+
+## 1H. AIC and BIC
+
+```{r}
+#AIC and BIC functions to run the AIC and BIC for the linear and quadradic model
+AIC(lin_fit,quad_fit)
+BIC(lin_fit,quad_fit)
+```
+According to both AIC and BIC, the quadradic fit model has a better goodness of fit when compared to the linear fit model.
+
+## 1I. Forecast and Prediction Interval
+
+```{r}
+#Forecast the plot of the quadradic fit
+#We also need to fit the data using data.frame to reformat the data
+quad_fit_forecast <- forecast(quad_fit, level = c(90,95), newdata=data.frame(t=seq(2019, 2021,by=(1/12)))) 
+plot(quad_fit_forecast,ylab="Monthly Attendence", xlab="Time (Month)", shadecols="oldstyle")
+lines(quad_fit_forecast$fitted, col="red")
+```
+
+
+
+## 2A. Seasonal Diagonstics 
+
+
+
+```{r}
+#Creating a time series regression and creating the summary information
+season_fit <- tslm(ts_data ~ season)
+summary(season_fit)
+
+```
+
+At the 5% level, most of our seasonal coefficients are statistically insignificant. The R^2, a measure of goodness of fit is measured at .572. The F statistic stands at a 12.15, meaning at least some of the variables should be included in the model because we reject the null hypothesis that each coefficient equals 0. 
+
+## 2B. Seasonal Plot
+```{r}
+#We can create the seasonal plot by using the plot function of our data, and our fitted values using the
+#line function.
+plot(ts_data, xlab="Month", lwd=2, col='skyblue3', xlim=c(2009,2019))
+lines(season_fit$fit,col="red3",lwd=2)
+```
+
+Although it appears most of our seasonal coefficients were statistically insiginficant, there appears to be a good fit between the observations and our seasonal predictors. This would indicate that at least some of the observations for attendance may be due to seasonal factors. 
+
+## 2C. Full Model
+```{r}
+#Fitting the model with both seasonal coefficients and the quadratic fit from before and plotting the fitted values against the residuals
+full_fit <- tslm(ts_data ~ season + t + I(t^2))
+plot(as.vector(fitted(full_fit)),as.vector(residuals(full_fit)), pch = 20, ylab="Residuals",xlab="Fitted", main = "Fitted vs Residuals of Full Fit")
+abline(h=0,lwd=2,col = "red3")
+
+```
+The plot seems to improved on the quadratic residual vs fitted values plot in that it seems to have spread out the cluster of points in the quadratic plot. The points are still spreaded across zero without any specific patterns.
+
+## 2D. Full Model Statistics
+```{r}
+#summary to see statistics of the model
+summary(full_fit)
+#showing the error metrics
+accuracy(full_fit)
+accuracy(season_fit)
+```
+At a 5% significance level, more seasonal coefficients are statistically significant than just the seasonal model. The adjusted R^2 also went up to 0.7176 which is around 0.2 higher meaning higher percentage of the variations are explaiend. The F-statistics also seems to stay significant. For the error metrics, the model has a MAE of 959.53, and RMSE of 1216.92 which are relatively small considering the data ranges from 9938 to 21337. The MAPE of the full model is also smaller than the the MAPE of the seasonal model meaning the percentage of mean absolute error is lowered by using this full model.
+
+## 2E. Full Model Forecast
+```{r}
+#forecasting the full model
+library(forecast)
+full_fit_forecast <- forecast(full_fit, level = c(90,95), newdata=data.frame(t=seq(2019, 2021,by=(1/12)))) 
+plot(full_fit_forecast,ylab="Monthly Attendence", xlab="Time (Month)", shadecols="oldstyle")
+# red line indicate the fitted model
+# black line indicate the original data
+lines(full_fit_forecast$fitted, col="red")
+
+```
+
+```{r}
+# this is the prediction of monthly attendence numbers with 90% and 95% confidence interval
+full_fit_forecast
+```
+
+
+## Conclusion
+The final full model including seasonal dummies and the quadratic fit does seem fit better than having them fit separately. This would suggest the existence of seasonality and trend in the monthly attendance of the PretendCity Children Museum. 
+
+In the future, we may create a better model by dropping our statistically insignificant seasonal coefficients. We may want to consider gathering more data to fit in relevant predictors to make our model more robust. 
+
+
+
+## References 
+Monthly Attendence excel spreadsheet by Alvin Ng with information from PretendCity Children Museum in Irvine, CA. 
